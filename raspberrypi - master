@@ -1,0 +1,110 @@
+import RPi.GPIO as GPIO
+import serial
+import time
+
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(16, GPIO.OUT)
+GPIO.setup(11, GPIO.OUT)
+GPIO.setup(36, GPIO.OUT)
+
+pwmBase = GPIO.PWM(16, 50)
+pwmTop = GPIO.PWM(11, 50)
+
+pwmBase.start(0)
+pwmTop.start(0)
+
+arduino = serial.Serial(port='/dev/ttyACM0',
+                        baudrate = 9600, timeout =.1)
+
+#set servo angle with this
+def set_angle(angle, servo, servoPin):
+    duty = (angle / 18) + 2
+    GPIO.output(servoPin, True)
+    servo.ChangeDutyCycle(duty)
+    time.sleep(1)
+    GPIO.output(servoPin, False)
+    servo.ChangeDutyCycle(0)
+   
+def reset_servo():
+    set_angle(80, pwmTop, 11)
+    set_angle(90, pwmBase, 16)
+
+def set_servo(topAngle):
+    set_angle(45, pwmBase, 16)
+    set_angle(topAngle, pwmTop, 11)
+
+#send stepper motor data with this
+def write_read(x):
+    arduino.write(bytes(x, 'utf-8'))
+    time.sleep(0.05)
+    data = arduino.readline()
+    return data
+
+def switch_pump_on(seconds):
+    time.sleep(1)
+    GPIO.output(36, True)
+    time.sleep(seconds)
+    GPIO.output(36, False)
+    time.sleep(1)
+   
+def watering_routine(rotationSchedule, wateringTime, topServoAngles):
+    resetCount = 0
+    resetRotation = 0
+    plantNum = 0
+    set_servo(topServoAngles[plantNum])
+    switch_pump_on(wateringTime)
+    reset_servo()
+    for i in rotationSchedule:
+        plantNum += 1
+        write_read(i)
+        time.sleep(4)
+        set_servo(topServoAngles[plantNum])
+        switch_pump_on(wateringTime)
+        time.sleep(1)
+        reset_servo()
+        resetRotation = resetRotation + len(i)
+       
+    while resetRotation > resetCount:
+        write_read("i")
+        resetCount += 1
+    print(str(resetCount) + " " + str(resetRotation))
+       
+
+while True:
+    choice = input("(1)Stepper, (2)Servos, (3)Pump, (4)Schedules : ")
+    if choice == "1":
+        #a-h: anticlockwise 8ths // i-p: clockwise 8ths
+        rotValue = input("Enter rotational value for stepper:")
+        write_read(rotValue)
+       
+    elif choice == "2":
+        servoChoice = input("Enter which servo to control (baseServo(1)/topServo(2)): ")
+        posValue = int(input("Enter value for position of servo (0 to 180): "))
+        if servoChoice == "1":
+            set_angle(posValue, pwmBase, 16)
+        elif servoChoice == "2":
+            set_angle(posValue, pwmTop, 11)
+        else:
+            print("invalid input")
+           
+    elif choice == "3":
+        switchPump = input("switch pump on or off? 1/on 2/off: ")
+        if switchPump == "1":
+            onDuration = int(input("Time for pump to be on for: "))
+            switch_pump_on(onDuration)
+           
+        else:
+            GPIO.output(36, False)
+           
+    elif choice == "4":
+        routine = input("1: red, oregano, purple, big green\n2: oregano, red, purple\n3: big green, oregano, red, purple, sparse")
+        if routine == "1":
+            watering_routine(["a","aa","a"], 1, [0,20,0,10])
+        elif routine == "2":
+            watering_routine(["a","a"], 1, [20,0,0])
+        elif routine == "3":
+            watering_routine(["a","a","a","a"], 1, [10,20,0,0,10])
+        else:
+            print("invalid input")
+    else:
+        print("invalid input")
