@@ -1,0 +1,49 @@
+const int stepPin = 6;
+const int dirPin = 7;
+const int enPin = 8;
+int x;
+int incomingByte = 0;
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(stepPin, OUTPUT);
+  pinMode(dirPin, OUTPUT);
+  pinMode(enPin, OUTPUT);
+  digitalWrite(enPin, LOW);
+  Serial.begin(9600);
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  //dirPin LOW = Anticlockwise
+  //dirPIn HIGH = CLockwise
+  if (Serial.available() > 0) {
+    incomingByte = Serial.read();
+    int formattedData = incomingByte -96;
+    Serial.print("Received: ");
+    Serial.println(incomingByte, DEC);
+
+    if(formattedData < 9){
+      int numberOfPulses = 25 * formattedData;
+      for(int z = 0; z < numberOfPulses; z++){
+        digitalWrite(dirPin, LOW);
+        digitalWrite(stepPin, HIGH);
+        digitalWrite(stepPin, LOW);
+        delay(35);
+      }
+    }
+    else if(formattedData > 8 && formattedData < 17){
+      int numberOfPulses = 25 * (formattedData - 8);
+      for(int z = 0; z < numberOfPulses; z++){
+        digitalWrite(dirPin, HIGH);
+        digitalWrite(stepPin, HIGH);
+        digitalWrite(stepPin, LOW);
+        delay(35);
+    }
+  }
+  else{
+    Serial.println("Invalid Data");
+  }
+ }
+}
